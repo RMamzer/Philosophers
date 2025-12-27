@@ -6,7 +6,7 @@
 /*   By: rmamzer <rmamzer@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/12/25 18:02:30 by rmamzer           #+#    #+#             */
-/*   Updated: 2025/12/26 20:32:09 by rmamzer          ###   ########.fr       */
+/*   Updated: 2025/12/27 18:29:49 by rmamzer          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,12 +14,12 @@
 #include "philo.h"
 
 
-void free_tablle(t_academy *table)
+size_t	get_time(void)
 {
-	if(table->philo)
-		free(table->philo);
-	if(table->fork)
-		free(table->fork);
+	struct timeval	time;
+
+	gettimeofday(&time, NULL);
+	return ((time.tv_sec * 1000) + (time.tv_usec / 1000));
 }
 
 int	ft_strlen(const char *str)
@@ -31,6 +31,49 @@ int	ft_strlen(const char *str)
 		i++;
 	return (i);
 }
+
+void write_error_msg(char *msg)
+{
+	write (STDERR_FILENO, msg, ft_strlen(msg));
+}
+
+bool	mutex_action(pthread_mutex_t *mutex, t_action action)
+{
+	if (action == INIT)
+	{
+		if (pthread_mutex_init(mutex, NULL) != 0)
+			return (write_error_msg(ERROR_MTX_INIT), FAILURE);
+	}
+	else if (action == LOCK)
+		pthread_mutex_lock(mutex);
+	else if (action == UNLOCK)
+		pthread_mutex_unlock(mutex);
+	else if (action == DESTROY)
+		pthread_mutex_destroy(mutex);
+	return (SUCCESS);
+}
+
+void	destroy_forks(t_academy *table, int forks_total)
+{
+	int i;
+
+	i = 0;
+	while(i < forks_total)
+	{
+		mutex_action(&table->forks[i], DESTROY);
+		i++;
+	}
+}
+
+void free_table(t_academy *table)
+{
+	if(table->philos)
+		free(table->philos);
+	if(table->forks)
+		free(table->forks);
+}
+
+\
 
 int	ft_isdigit(int c)
 {
@@ -45,10 +88,6 @@ bool	ft_isspace(char c)
 
 
 
-void write_error_msg(char *msg)
-{
-	write (STDERR_FILENO, msg, ft_strlen(msg));
-}
 
 bool check_arg_num(int argc)
 {
@@ -128,8 +167,8 @@ int philo_atoi(const char *nstr)
 
 bool	init_table(int argc, char **argv, t_academy *table)
 {
-	table->philo = NULL;
-	table->fork = NULL;
+	table->philos = NULL;
+	table->forks = NULL;
 	table->philos_total = philo_atoi(argv[1]);
 	table->time_to_die = philo_atoi(argv[2]);
 	table->time_to_eat = philo_atoi(argv[3]);
@@ -138,11 +177,12 @@ bool	init_table(int argc, char **argv, t_academy *table)
 		table->num_of_meals = philo_atoi(argv[5]);
 	else
 		table->num_of_meals = 0;
-	table->philo == malloc(sizeof(t_philo) * table->philos_total);
-		if(!table->philo)
+	table->time_start = get_time();
+	table->philos = malloc(sizeof(t_philo) * table->philos_total);
+		if(!table->philos)
 			return(write_error_msg(ERROR_MEM),FAILURE);
-	table->fork == malloc(sizeof(t_philo) * table->philos_total);
-		if(!table->fork)
+	table->forks = malloc(sizeof(t_philo) * table->philos_total);
+		if(!table->forks)
 			return(write_error_msg(ERROR_MEM),FAILURE);
 	return(SUCCESS);
 }
@@ -155,13 +195,51 @@ bool init_mutexes(t_academy *table)
 	i = 0;
 	while (i < table->philos_total)
 	{
-
+		if (mutex_action(&table->forks[i], INIT)== FAILURE)
+			return(destroy_forks(table, table->philos_total),FAILURE);
+		i++;
 	}
-
-
+	if (mutex_action(&table->mtx_msg, INIT)== FAILURE)
+		return(destroy_forks(table, table->philos_total),FAILURE);
 	return (SUCCESS);
 }
 
+
+void	give_forks(t_academy *table, t_philo *philo, int i)
+{
+	if (philo->id % 2)
+	{
+		philo->first_fork = &table->forks[(i+1) % table->philos_total];
+		philo->second_fork = &table->forks[i];
+	}
+	else
+	{
+		philo->first_fork = &table->forks[i];
+		philo->second_fork = &table->forks[(i+1) % table->philos_total];
+	}
+}
+
+
+
+
+void	init_philosophers(t_academy *table)
+{
+	int i;
+	t_philo *philo;
+
+	i = 0;
+	while (i < table->philos_total)
+	{
+		philo = table->philos;
+		philo->id = i + 1;
+		philo->meals_eaten = 0;
+		philo->last_meal_time = table->time_start;
+		//philo->table = table;
+		give_forks(table, philo, i);
+		i++;
+	}
+
+}
 
 
 bool init_data( int argc, char **argv, t_academy *table)
@@ -170,10 +248,50 @@ bool init_data( int argc, char **argv, t_academy *table)
 		return (free_table(table), FAILURE);
 	if (init_mutexes(table)== FAILURE)
 		return(free_table(table), FAILURE);
+	init_philosophers(table);
 	return (SUCCESS);
-
 }
 
+
+
+
+bool	thread_action(pthread_t thread, void *data, void *(*function)(void *), t_action action )
+{
+	if (action == CREATE)
+	{
+		pthread_create(thread, NULL, function, data);
+	}
+}
+
+void	*life(void *arg)
+{
+	t_philo *philo;
+
+	philo = (t_philo *)arg;
+	
+}
+
+
+
+bool	create_threads(t_academy *table)
+{
+	int i;
+
+	i = 0;
+	while (i < table->philos_total)
+	{
+		if(thread_action(&table->philos[i].thread, &table->philos[i], life, CREATE))
+
+		i++;
+	}
+	return (SUCCESS);
+}
+
+bool open_academy(t_academy *table)
+{
+	create_threads(table);
+	return (SUCCESS);
+}
 
 int	main(int argc, char **argv)
 {
@@ -183,5 +301,8 @@ int	main(int argc, char **argv)
 		return(FAILURE);
 	if (init_data(argc, argv, &table) == FAILURE)
 		return(FAILURE);
+	if (open_academy(&table)== FAILURE)
+		return (FAILURE);
+	//clean before exit
 	return (SUCCESS);
 }
