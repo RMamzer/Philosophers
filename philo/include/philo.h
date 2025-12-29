@@ -6,7 +6,7 @@
 /*   By: rmamzer <rmamzer@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/12/25 18:02:42 by rmamzer           #+#    #+#             */
-/*   Updated: 2025/12/27 18:20:47 by rmamzer          ###   ########.fr       */
+/*   Updated: 2025/12/29 18:54:54 by rmamzer          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,7 +18,8 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <limits.h>
-# include <sys/time.h>
+#include <sys/time.h>
+# include <stdio.h>
 
 # define SUCCESS 0
 # define FAILURE 1
@@ -32,9 +33,17 @@
 # define ERROR_ARGZERO "Error: number cannot be 0\n"
 # define ERROR_MEM "Error: memory allocation failure\n"
 # define ERROR_MTX_INIT "Error: mutex initialization failure\n"
+# define ERROR_TH_CREATE "Error: pthread creation failure\n"
+# define ERROR_TH_JOIN "Error: pthread join failure\n"
 
 
+# define FORKING "takes a fork"
+# define EATING "is eating"
+# define SLEEPING "is sleeping"
+# define THINKING "is thinking"
+# define DIED "died"
 
+typedef struct s_academy t_academy;
 
 
 typedef struct s_philo
@@ -45,6 +54,7 @@ typedef struct s_philo
 	pthread_mutex_t *first_fork;
 	pthread_mutex_t *second_fork;
 	pthread_t thread;
+	t_academy *table;
 }	t_philo;
 
 typedef enum e_action
@@ -61,17 +71,17 @@ typedef enum e_action
 typedef struct s_academy
 {
 	int philos_total;
-	size_t time_to_die;
-	size_t time_to_sleep;
-	size_t time_to_eat;
-	size_t time_start;
-	int num_of_meals;
-
+	size_t	time_to_die;
+	size_t	time_to_sleep;
+	size_t	time_to_eat;
+	size_t	time_start;
+	int		num_of_meals;
+	bool		close_academy;
 	t_philo			*philos;
 	pthread_mutex_t	*forks;
 	pthread_mutex_t	mtx_msg;
-// 	pthread_mutex_t mtx_portion;
-// 	pthread_mutex_t mtx_death;
+ 	pthread_mutex_t mtx_health_stats;
+	pthread_mutex_t mtx_death;
 
 
 } t_academy;
